@@ -9,7 +9,7 @@ class DoctorModel extends Model
 {
     use HasFactory;
     protected $table = 'doctors';
-    protected $fillable = [ ];
+    protected $fillable = ['certificate'];    
 
     /**
      * The attributes that should be hidden for serialization.

@@ -30,8 +30,9 @@ class DoctorController extends Controller
           'active' => 'required',
           'specialization' => 'required',
           'dob' => 'required',
-          'gender' => 'required'
-          
+          'gender' => 'required',
+          'certificate' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048', // 2MB max for certificate
+          'image' => 'nullable|file|mimes:jpg,jpeg,png|max:2048' // 2MB max for profile image
     ]);
         
     if ($validator->fails())
@@ -121,6 +122,13 @@ class DoctorController extends Controller
                     $doctorModel->specialization = $request->specialization;
                     $doctorModel->active=$request->active;
 
+                    // Upload certificate during doctor creation
+                    if(isset($request->certificate)) {
+                        if($request->hasFile('certificate')) {
+                            $doctorModel->certificate = Helpers::uploadImage('certificates/', $request->file('certificate'));
+                        }
+                    }
+
                     $doctorModel->created_at=$timeStamp;
                     $doctorModel->updated_at=$timeStamp;
                     $qResponceDoct= $doctorModel->save();
@@ -194,6 +202,140 @@ class DoctorController extends Controller
                 }
 
     // Update Data
+
+    // certificate for doctor
+    public function uploadCertificate(Request $request)
+        {
+            $validator = Validator::make(request()->all(), [
+                'doctor_id' => 'required|exists:doctors,user_id',
+                'certificate' => 'required|file|mimes:jpg,jpeg,png,pdf|max:2048' // 2MB max
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    "response" => 400, 
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 400);
+            }
+
+            try {
+                $doctor = DoctorModel::where('user_id', $request->doctor_id)->first();
+                
+                if (!$doctor) {
+                    return response()->json([
+                        "response" => 404,
+                        "message" => "Doctor not found"
+                    ], 404);
+                }
+
+                // Delete old certificate if exists
+                if ($doctor->certificate) {
+                    Helpers::deleteImage($doctor->certificate);
+                }
+
+                // Upload new certificate
+                $certificatePath = $request->hasFile('certificate') 
+                    ? Helpers::uploadImage('certificates/', $request->file('certificate')) 
+                    : null;
+
+                $doctor->certificate = $certificatePath;
+                $doctor->save();
+
+                return response()->json([
+                    "response" => 200,
+                    "message" => "Certificate uploaded successfully",
+                    "certificate_path" => $certificatePath
+                ], 200);
+
+            } catch (\Exception $e) {
+                return response()->json([
+                    "response" => 500,
+                    "message" => "Error uploading certificate: " . $e->getMessage()
+                ], 500);
+            }
+        }
+
+    // Verify doctor certificate via QR code (public access)
+    public function verifyDoctor($token)
+    {
+        try {
+            // Decode the token (doctor user_id)
+            $doctorId = base64_decode($token);
+            
+            $doctor = DB::table("doctors")
+                ->select(
+                    'doctors.*',
+                    "users.f_name",
+                    "users.l_name",
+                    "users.phone",
+                    "users.isd_code", 
+                    "users.gender",
+                    "users.dob",
+                    "users.email",
+                    "users.image",
+                    "department.title as department_name"
+                )
+                ->join('users', 'users.id', '=', 'doctors.user_id')
+                ->join('department', 'department.id', '=', 'doctors.department')
+                ->where("doctors.user_id", "=", $doctorId)
+                ->first();
+
+            if (!$doctor) {
+                return response()->json([
+                    "response" => 404,
+                    "message" => "Doctor not found"
+                ], 404);
+            }
+
+            // Return doctor data with certificate
+            return response()->json([
+                "response" => 200,
+                "message" => "Doctor verification successful",
+                "doctor" => [
+                    "name" => $doctor->f_name . " " . $doctor->l_name,
+                    "department" => $doctor->department_name,
+                    "specialization" => $doctor->specialization,
+                    "experience" => $doctor->ex_year . " years",
+                    "certificate" => $doctor->certificate ? config('app.url') . '/storage/' . $doctor->certificate : null,
+                    "is_verified" => true
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                "response" => 500,
+                "message" => "Verification failed"
+            ], 500);
+        }
+    }
+
+    public function getQRCodeData($doctorId)
+    {
+        try {
+            $doctor = DoctorModel::where('user_id', $doctorId)->first();
+            
+            if (!$doctor) {
+                return Helpers::errorResponse("Doctor not found");
+            }
+
+            // Generate verification token (encoded doctor user_id)
+            $verificationToken = base64_encode($doctorId);
+            
+            // Points to React frontend
+            $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173'); // Default to 5173
+            $verificationUrl = "{$frontendUrl}/verify-doctor/{$verificationToken}";
+
+            return response()->json([
+                "response" => 200,
+                "qr_data" => $verificationUrl,
+                "doctor_id" => $doctorId
+            ], 200);
+
+        } catch (\Exception $e) {
+            return Helpers::errorResponse("Error generating QR data");
+        }
+    }
 
 function updateData(Request $request){
 
@@ -358,8 +500,18 @@ function updateData(Request $request){
                 $dataModel->stop_booking= $request->stop_booking;
             }
 
-            
-            
+            // Update the certificate handling part:
+            if(isset($request->certificate)){
+                if($request->hasFile('certificate')) {
+                    // Delete old certificate
+                    if($dataModel->certificate){
+                        Helpers::deleteImage($dataModel->certificate);
+                    }
+                    // Upload new certificate
+                    $dataModel->certificate = Helpers::uploadImage('certificates/', $request->file('certificate'));
+                }
+            }
+
         }else{
             DB::rollBack();
                 return Helpers::errorResponse("error");
@@ -439,9 +591,6 @@ function updateData(Request $request){
                              // Calculate the total review points
                              $dataDoctor->total_appointment_done = count($dataDApp);
                     }
-                    
-             
-            
                 $response = [
                     "response" => 200,
                     'data' => $data,

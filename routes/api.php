@@ -125,6 +125,8 @@ Route::group(['prefix' => 'v1', 'namespace' => 'api\v1', 'middleware' => 'auth:s
     //Doctors Review 
     Route::post("add_doctor_review", [DoctorsReviewController::class, 'addData']);
 
+    // Certificate upload requires authentication
+    Route::post("upload_doctor_certificate", [DoctorController::class, 'uploadCertificate']);
 
     //Patients
     Route::post("add_patient", [PatientController::class, 'addData']);
@@ -298,7 +300,9 @@ Route::group(['prefix' => 'v1', 'namespace' => 'api\v1'], function () {
     Route::get("get_all_doctor_review", [DoctorsReviewController::class, 'getData']);
     Route::get("get_doctor_review_page", [DoctorsReviewController::class, 'getDataPeg']);
 
-    
+     // QR code generation and verification should be publicly accessible
+    Route::get("get_qr_code_data/{doctorId}", [DoctorController::class, 'getQRCodeData']); // Generate QR code data
+    Route::get("verify-doctor/{token}", [DoctorController::class, 'verifyDoctor']); // Verify doctor via QR code
     
     //Patients
     Route::get("get_patients", [PatientController::class, 'getData']);

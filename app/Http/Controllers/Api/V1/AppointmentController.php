@@ -121,6 +121,18 @@ class AppointmentController extends Controller
         if ($validator->fails())
             return response(["response" => 400], 400);
 
+        // In AppointmentController.php - update the validation
+        if ($request->type == "Out Call") {
+            $outCallValidator = Validator::make(request()->all(), [
+                'out_call_address' => 'required',
+                'out_call_city' => 'required',
+            ]);
+            
+            if ($outCallValidator->fails()) {
+                return response(["response" => 400, "message" => "Out Call address and city are required"], 400);
+            }
+        }
+
         try {
             DB::beginTransaction();
             $timeStamp = date("Y-m-d H:i:s");
@@ -236,6 +248,13 @@ class AppointmentController extends Controller
                 $dataModel->meeting_link = $request->meeting_link;
             }
 
+            // ADD OUT CALL FIELDS - NEW CODE
+            if ($request->type == "Out Call") {
+                $dataModel->out_call_address = $request->out_call_address;
+                $dataModel->out_call_city = $request->out_call_city;
+                $dataModel->out_call_landmark = $request->out_call_landmark;
+                $dataModel->out_call_instructions = $request->out_call_instructions;
+            }
 
             $dataModel->created_at = $timeStamp;
             $dataModel->updated_at = $timeStamp;
@@ -499,7 +518,7 @@ class AppointmentController extends Controller
             return response(["response" => 400], 400);
         try {
 
-            $dataModel = CityModel::where("id", $request->id)->first();
+            $dataModel = AppointmentModel::where("id", $request->id)->first();
 
             $qResponce = $dataModel->delete();
             if ($qResponce) {
@@ -569,7 +588,10 @@ class AppointmentController extends Controller
                 'users.f_name as doct_f_name',
                 'users.l_name as doct_l_name',
                 "users.image as doct_image",
-                "doctors.specialization as doct_specialization"
+                "doctors.specialization as doct_specialization",
+                // ADD OUT CALL FIELDS
+                "doctors.out_call_appointment",
+                "doctors.out_call_fee"
             )
             ->Join('patients', 'patients.id', '=', 'appointments.patient_id')
             ->Join('department', 'department.id', '=', 'appointments.dept_id')
@@ -718,7 +740,12 @@ class AppointmentController extends Controller
                 'users.f_name as doct_f_name',
                 'users.l_name as doct_l_name',
                 "users.image as doct_image",
-                "doctors.specialization as doct_specialization"
+                "doctors.specialization as doct_specialization",
+                 // ADD OUT CALL FIELDS
+                "appointments.out_call_address",
+                "appointments.out_call_city", 
+                "appointments.out_call_landmark",
+                "appointments.out_call_instructions"
 
             )
             ->Join('patients', 'patients.id', '=', 'appointments.patient_id')

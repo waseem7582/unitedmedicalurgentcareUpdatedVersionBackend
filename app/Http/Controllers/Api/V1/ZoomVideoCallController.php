@@ -88,7 +88,7 @@ class ZoomVideoCallController extends Controller
             ->asForm()
             ->post('https://zoom.us/oauth/token', [
                 'grant_type' => 'account_credentials',
-                'account_id'=> 'VL3JNfs_RSCdgmgtv1TZpA'
+                'account_id'=> $accountId // ✅ CORRECT - FROM DATABASE
             ]);
             //echo $response;
 

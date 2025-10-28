@@ -55,6 +55,7 @@ use App\Http\Controllers\Api\V1\AdminNotificationController;
 use App\Http\Controllers\Api\V1\AppointmentStatusLogController;
 use App\Http\Controllers\Api\V1\SmtpController;
 use App\Http\Controllers\Api\V1\ContactFormInboxController;
+use App\Http\Controllers\Api\V1\DoctorTrackingController;
 
 
 /*
@@ -268,6 +269,15 @@ Route::group(['prefix' => 'v1', 'namespace' => 'api\v1', 'middleware' => 'auth:s
     Route::post("delete_contact_us_form_data", [ContactFormInboxController::class, 'deleteData']);
 });
 
+// Add these routes - Doctor Tracking APIs
+Route::group(['prefix' => 'v1/tracking', 'middleware' => 'auth:api'], function () {
+    Route::post('update-location', [DoctorTrackingController::class, 'updateDoctorLocation']);
+    Route::post('mark-arrived', [DoctorTrackingController::class, 'markAsArrived']);
+    Route::post('mark-completed', [DoctorTrackingController::class, 'markAsCompleted']);
+    Route::get('doctor-history', [DoctorTrackingController::class, 'getDoctorTrackingHistory']);
+});
+
+
 Route::group(['prefix' => 'v1', 'namespace' => 'api\v1'], function () {
     Route::post("login", [LoginController::class, 'login']);
     Route::post("login_phone", [LoginController::class, 'loginMobile']);
@@ -303,6 +313,8 @@ Route::group(['prefix' => 'v1', 'namespace' => 'api\v1'], function () {
      // QR code generation and verification should be publicly accessible
     Route::get("get_qr_code_data/{doctorId}", [DoctorController::class, 'getQRCodeData']); // Generate QR code data
     Route::get("verify-doctor/{token}", [DoctorController::class, 'verifyDoctor']); // Verify doctor via QR code
+    // Public route for patient to get tracking info
+    Route::get('v1/get-tracking-info/{appointment_id}', [DoctorTrackingController::class, 'getTrackingInfo']);
     
     //Patients
     Route::get("get_patients", [PatientController::class, 'getData']);

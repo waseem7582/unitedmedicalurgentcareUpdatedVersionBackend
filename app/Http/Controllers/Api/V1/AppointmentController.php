@@ -126,6 +126,8 @@ class AppointmentController extends Controller
             $outCallValidator = Validator::make(request()->all(), [
                 'out_call_address' => 'required',
                 'out_call_city' => 'required',
+                'patient_lat' => 'required|numeric',
+                'patient_lng' => 'required|numeric',
             ]);
             
             if ($outCallValidator->fails()) {
@@ -241,6 +243,7 @@ class AppointmentController extends Controller
             $dataModel->type = $request->type;
             $dataModel->source = $request->source;
             $dataModel->payment_status = $request->payment_status;
+
             if (isset($request->meeting_id)) {
                 $dataModel->meeting_id = $request->meeting_id;
             }
@@ -254,6 +257,10 @@ class AppointmentController extends Controller
                 $dataModel->out_call_city = $request->out_call_city;
                 $dataModel->out_call_landmark = $request->out_call_landmark;
                 $dataModel->out_call_instructions = $request->out_call_instructions;
+                if (isset($request->patient_lat) && isset($request->patient_lng)) {
+                    $dataModel->patient_lat = $request->patient_lat;
+                    $dataModel->patient_lng = $request->patient_lng;
+                }   
             }
 
             $dataModel->created_at = $timeStamp;
@@ -261,6 +268,18 @@ class AppointmentController extends Controller
 
             $qResponce = $dataModel->save();
 
+            // Create tracking record for Out Call appointments
+            if ($request->type == "Out Call" && isset($request->patient_lat) && isset($request->patient_lng)) {
+                $trackingData = [
+                    'appointment_id' => $dataModel->id,
+                    'doctor_id' => $request->doct_id,
+                    'patient_lat' => $request->patient_lat,
+                    'patient_lng' => $request->patient_lng,
+                    'tracking_status' => 'not_started',
+                ];
+                
+                \App\Models\DoctorTrackingModel::create($trackingData);                
+            }
             if ($qResponce) {
                 if (isset($request->coupon_id)) {
                     $dataCouponUseModel = new CouponUseModel;

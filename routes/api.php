@@ -270,11 +270,12 @@ Route::group(['prefix' => 'v1', 'namespace' => 'api\v1', 'middleware' => 'auth:s
 });
 
 // Add these routes - Doctor Tracking APIs
-Route::group(['prefix' => 'v1/tracking', 'middleware' => 'auth:api'], function () {
+Route::group(['prefix' => 'v1/tracking', 'middleware' => 'auth:sanctum'], function () {
     Route::post('update-location', [DoctorTrackingController::class, 'updateDoctorLocation']);
     Route::post('mark-arrived', [DoctorTrackingController::class, 'markAsArrived']);
     Route::post('mark-completed', [DoctorTrackingController::class, 'markAsCompleted']);
     Route::get('doctor-history', [DoctorTrackingController::class, 'getDoctorTrackingHistory']);
+    Route::get('active', [DoctorTrackingController::class, 'getActiveTracking']);
 });
 
 

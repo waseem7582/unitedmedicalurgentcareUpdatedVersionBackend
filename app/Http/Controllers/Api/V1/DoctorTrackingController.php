@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use App\Models\DoctorTrackingModel;
 use Illuminate\Support\Facades\Validator;
 use App\CentralLogics\Helpers;
-use Illuminate\Support\Facades\Log;
 
 class DoctorTrackingController extends Controller
 {
@@ -43,7 +42,7 @@ class DoctorTrackingController extends Controller
                 $updates['tracking_status'] = 'traveling';
                 $updates['tracking_started_at'] = now();
                 
-                Log::info('Auto-started tracking for appointment: ' . $request->appointment_id);
+                // Log::info('Auto-started tracking for appointment: ' . $request->appointment_id);
             }
 
             // Calculate distance and ETA
@@ -71,7 +70,7 @@ class DoctorTrackingController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error updating doctor location: ' . $e->getMessage());
+            // Log::error('Error updating doctor location: ' . $e->getMessage());
             return Helpers::errorResponse("Error updating location");
         }
     }
@@ -100,7 +99,7 @@ class DoctorTrackingController extends Controller
                     'distance_km' => 0, // Distance is 0 when arrived
                 ]);
 
-                Log::info('Doctor arrived for appointment: ' . $request->appointment_id);
+                // Log::info('Doctor arrived for appointment: ' . $request->appointment_id);
 
                 // TODO: Send push notification to patient
 
@@ -109,7 +108,7 @@ class DoctorTrackingController extends Controller
 
             return Helpers::errorResponse("Tracking record not found");
         } catch (\Exception $e) {
-            Log::error('Error marking as arrived: ' . $e->getMessage());
+            // Log::error('Error marking as arrived: ' . $e->getMessage());
             return Helpers::errorResponse("Error updating arrived status");
         }
     }
@@ -136,14 +135,14 @@ class DoctorTrackingController extends Controller
                     'completed_at' => now(),
                 ]);
 
-                Log::info('Appointment completed: ' . $request->appointment_id);
+                // Log::info('Appointment completed: ' . $request->appointment_id);
 
                 return Helpers::successResponse("Appointment completed");
             }
 
             return Helpers::errorResponse("Tracking record not found");
         } catch (\Exception $e) {
-            Log::error('Error marking as completed: ' . $e->getMessage());
+            // Log::error('Error marking as completed: ' . $e->getMessage());
             return Helpers::errorResponse("Error completing appointment");
         }
     }
@@ -185,7 +184,7 @@ class DoctorTrackingController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error fetching tracking info: ' . $e->getMessage());
+            // Log::error('Error fetching tracking info: ' . $e->getMessage());
             return Helpers::errorResponse("Error fetching tracking info");
         }
     }
@@ -206,8 +205,54 @@ class DoctorTrackingController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error fetching tracking history: ' . $e->getMessage());
+            // Log::error('Error fetching tracking history: ' . $e->getMessage());
             return Helpers::errorResponse("Error fetching tracking history");
+        }
+    }
+
+  
+    public function getActiveTracking(Request $request)
+    {
+        try {
+            $activeTracking = DoctorTrackingModel::with(['appointment', 'doctor'])
+                // ✅ CHANGED: Include 'not_started' to show all Out Call appointments
+                ->whereIn('tracking_status', ['not_started', 'traveling', 'arrived'])
+                ->whereHas('appointment', function($query) {
+                    $query->where('status', 'Confirmed')
+                        ->where('type', 'Out Call'); // ✅ CRITICAL: Filter for Out Call appointments only
+                })
+                ->orderBy('updated_at', 'desc')
+                ->get()
+                ->map(function($tracking) {
+                    return [
+                        'id' => $tracking->id,
+                        'appointment_id' => $tracking->appointment_id,
+                        'doctor_name' => $tracking->doctor->f_name . ' ' . $tracking->doctor->l_name,
+                        'patient_name' => $tracking->appointment->patient_f_name . ' ' . $tracking->appointment->patient_l_name,
+                        'tracking_status' => $tracking->tracking_status,
+                        'distance_km' => $tracking->distance_km,
+                        'eta_minutes' => $tracking->eta_minutes,
+                        'out_call_address' => $tracking->appointment->out_call_address,
+                        'out_call_city' => $tracking->appointment->out_call_city,
+                        'out_call_landmark' => $tracking->appointment->out_call_landmark,
+                        'out_call_instructions' => $tracking->appointment->out_call_instructions,
+                        'tracking_started_at' => $tracking->tracking_started_at,
+                        'arrived_at' => $tracking->arrived_at,
+                        'created_at' => $tracking->created_at,
+                        'updated_at' => $tracking->updated_at,
+                    ];
+                });
+
+            return response([
+                "response" => 200,
+                "data" => $activeTracking
+            ]);
+        } catch (\Exception $e) {
+            // Log::error('Error fetching active tracking: ' . $e->getMessage());
+            return response([
+                "response" => 500,
+                "message" => "Error fetching tracking data"
+            ]);
         }
     }
 }
